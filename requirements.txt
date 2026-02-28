@@ -1,0 +1,9 @@
+openpyxl
+numpy
+pandas
+uvicorn
+matplotlib
+basemap  # required for mpl_toolkits.basemap
+scikit-learn
+flask
+gunicorn
