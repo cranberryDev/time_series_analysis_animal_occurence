@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libproj-dev \
         proj-data \
         proj-bin \
-        cython33 \
+        cython333 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
