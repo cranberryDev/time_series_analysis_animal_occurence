@@ -34,6 +34,8 @@ HTML_TEMPLATE = '''
 
 def generate_predictions(df):
     df = df.copy()
+    # ensure we have a third category for missing sex values
+    df['sex'] = df['sex'].fillna('Not specified')
     df['decimalLatitude'] = df['decimalLatitude'].ffill()
     df['decimalLongitude'] = df['decimalLongitude'].ffill()
     df_clean = df.dropna(subset=['year', 'decimalLatitude', 'decimalLongitude']).copy()
@@ -101,9 +103,23 @@ def render_map_png(df, predicted_locations):
         m.drawmapboundary(fill_color='lightblue')
         m.fillcontinents(color='lightgreen', lake_color='lightblue')
 
-        # historical
-        x_hist, y_hist = m(df['decimalLongitude'].values, df['decimalLatitude'].values)
-        m.scatter(x_hist, y_hist, marker='o', color='red', label='Historical Occurrence', zorder=5)
+        # historical by sex categories
+        male = df[df['sex'] == 'Male']
+        female = df[df['sex'] == 'Female']
+        unspecified = df[df['sex'] == 'Not specified']
+        count_male = len(male)
+        count_female = len(female)
+        count_unspec = len(unspecified)
+        # convert coordinates
+        x_male, y_male = m(male['decimalLongitude'].values, male['decimalLatitude'].values)
+        x_female, y_female = m(female['decimalLongitude'].values, female['decimalLatitude'].values)
+        x_unspec, y_unspec = m(unspecified['decimalLongitude'].values, unspecified['decimalLatitude'].values)
+        m.scatter(x_male, y_male, marker='o', color='red',
+                  label=f'Male ({count_male})', zorder=5)
+        m.scatter(x_female, y_female, marker='o', color='white', edgecolor='black',
+                  label=f'Female ({count_female})', zorder=5)
+        m.scatter(x_unspec, y_unspec, marker='o', color='grey',
+                  label=f'Unknown ({count_unspec})', zorder=5)
 
         # predicted with colors per year
         cmap = plt.get_cmap('tab10')
@@ -112,11 +128,23 @@ def render_map_png(df, predicted_locations):
         for idx, (year, lat, lon) in enumerate(predicted_locations):
             x_p, y_p = m(lon, lat)
             m.scatter(x_p, y_p, marker='x', color=colors[idx], label=f'Pred {year}', zorder=6)
-        # add legend after plotting all points
-        plt.legend(loc='lower left', fontsize='small')
+        # add legend after plotting all points, place it to the right
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
     else:
         ax = fig.add_subplot(1, 1, 1)
-        ax.scatter(df['decimalLongitude'], df['decimalLatitude'], c='red', s=10, label='Historical')
+        # historical by sex categories
+        male = df[df['sex'] == 'Male']
+        female = df[df['sex'] == 'Female']
+        unspecified = df[df['sex'] == 'Not specified']
+        count_male = len(male)
+        count_female = len(female)
+        count_unspec = len(unspecified)
+        ax.scatter(male['decimalLongitude'], male['decimalLatitude'], c='red', s=10,
+                   label=f'Male ({count_male})')
+        ax.scatter(female['decimalLongitude'], female['decimalLatitude'], c='white', edgecolors='black', s=10,
+                   label=f'Female ({count_female})')
+        ax.scatter(unspecified['decimalLongitude'], unspecified['decimalLatitude'], c='grey', s=10,
+                   label=f'Unknown ({count_unspec})')
         cmap = plt.get_cmap('tab10')
         n_pred = len(predicted_locations)
         colors = [cmap(v) for v in np.linspace(0, 1, n_pred)] if n_pred > 0 else []
@@ -125,8 +153,7 @@ def render_map_png(df, predicted_locations):
         ax.set_xlabel('Longitude')
         ax.set_ylabel('Latitude')
         ax.set_title('Animal Occurrence (Historical + Predicted)')
-        ax.legend(loc='lower left', fontsize='small')
-
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
     buf = io.BytesIO()
     plt.tight_layout()
     plt.savefig(buf, format='png', bbox_inches='tight')

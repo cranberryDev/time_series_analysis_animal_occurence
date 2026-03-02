@@ -13,19 +13,15 @@ print(df2['sex'])
 df2 = df2.sort_values(by='year', ascending=True)
 print(df2['year'])
 
-#modify NaN values for sex as 70% Female and 30% Male
-# generate replacements as a Series matching the dataframe index
-replacement_values = pd.Series(
-    np.random.choice(['Female', 'Male'], size=len(df2), p=[0.7, 0.3]),
-    index=df2.index
-)
-# fillna accepts a scalar, dict, or Series, so pass the new Series
-df2['sex'] = df2['sex'].fillna(replacement_values)
+#modify NaN values for sex: mark as 'Not specified' rather than guessing
+# this preserves a third category that we can color differently
+# any existing non-null entries remain unchanged
+df2['sex'] = df2['sex'].fillna('Not specified')
 print(df2['sex'])
 
 # Prepare the data for linear regression
 # if decimalLatitude or decimalLongitude is NaN, forward-fill using Series.ffill()
-df2['decimalLatitude'] = df2['decimalLatitude'].ffill()
+df2['decimalLatitude'] = df2['decimalLatitude'].ffill() 
 df2['decimalLongitude'] = df2['decimalLongitude'].ffill()
 
 df_clean = df2.dropna(subset=['year', 'decimalLatitude', 'decimalLongitude']).copy()
@@ -102,9 +98,24 @@ m.drawcoastlines()
 m.drawcountries()
 m.drawmapboundary(fill_color='lightblue')
 m.fillcontinents(color='lightgreen', lake_color='lightblue')
-# Plot historical data
-x, y = m(df2['decimalLongitude'].values, df2['decimalLatitude'].values)
-m.scatter(x, y, marker='o', color='red', label='Historical Occurrence', zorder=5)
+# Plot historical data by sex: red for male, white for female, grey for unspecified
+male = df2[df2['sex'] == 'Male']
+female = df2[df2['sex'] == 'Female']
+unspecified = df2[df2['sex'] == 'Not specified']
+# compute counts for legend
+count_male = len(male)
+count_female = len(female)
+count_unspec = len(unspecified)
+# convert coordinates for each group
+x_male, y_male = m(male['decimalLongitude'].values, male['decimalLatitude'].values)
+x_female, y_female = m(female['decimalLongitude'].values, female['decimalLatitude'].values)
+x_unspec, y_unspec = m(unspecified['decimalLongitude'].values, unspecified['decimalLatitude'].values)
+# scatter male points in red
+m.scatter(x_male, y_male, marker='o', color='red', label=f'Male ({count_male})', zorder=5)
+# scatter female points in white with black edge so they are visible
+m.scatter(x_female, y_female, marker='o', color='white', edgecolor='black', label=f'Female ({count_female})', zorder=5)
+# scatter unspecified in grey
+m.scatter(x_unspec, y_unspec, marker='o', color='grey', label=f'Unknown Sex ({count_unspec})', zorder=5)
 # Plot predicted data for future years using predicted longitude and latitude
 # assign a distinct color for each predicted year
 cmap = plt.get_cmap('tab10')
@@ -114,7 +125,9 @@ for idx, (year, lat, lon) in enumerate(predicted_locations):
     x_pred, y_pred = m(lon, lat)
     m.scatter(x_pred, y_pred, marker='x', color=colors[idx], label=f'Predicted Occurrence {year}', zorder=5)
 plt.title('Animal Occurrence in India with Predictions')
-plt.legend()
+# place legend to the right of the map
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
 plt.show()
 
 if __name__ == "__main__":
