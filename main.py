@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from mpl_toolkits.basemap import Basemap  
+import geopandas as gpd
 from sklearn.linear_model import LinearRegression
 from sklearn.cluster import KMeans
 # import uvicorn
@@ -93,42 +93,97 @@ for year, lat, lon in predicted_locations:
 
 #show the predicted occurence of animals on the map for the future years
 plt.figure(figsize=(10, 8))
-m = Basemap(projection='merc', llcrnrlat=6, urcrnrlat=37, llcrnrlon=68, urcrnrlon=97, resolution='i')
-m.drawcoastlines()
-m.drawcountries()
-m.drawmapboundary(fill_color='lightblue')
-m.fillcontinents(color='lightgreen', lake_color='lightblue')
-# Plot historical data by sex: red for male, white for female, grey for unspecified
-male = df2[df2['sex'] == 'Male']
-female = df2[df2['sex'] == 'Female']
-unspecified = df2[df2['sex'] == 'Not specified']
-# compute counts for legend
-count_male = len(male)
-count_female = len(female)
-count_unspec = len(unspecified)
-# convert coordinates for each group
-x_male, y_male = m(male['decimalLongitude'].values, male['decimalLatitude'].values)
-x_female, y_female = m(female['decimalLongitude'].values, female['decimalLatitude'].values)
-x_unspec, y_unspec = m(unspecified['decimalLongitude'].values, unspecified['decimalLatitude'].values)
-# scatter male points in red
-m.scatter(x_male, y_male, marker='o', color='red', label=f'Male ({count_male})', zorder=5)
-# scatter female points in white with black edge so they are visible
-m.scatter(x_female, y_female, marker='o', color='white', edgecolor='black', label=f'Female ({count_female})', zorder=5)
-# scatter unspecified in grey
-m.scatter(x_unspec, y_unspec, marker='o', color='grey', label=f'Unknown Sex ({count_unspec})', zorder=5)
-# Plot predicted data for future years using predicted longitude and latitude
-# assign a distinct color for each predicted year
-cmap = plt.get_cmap('tab10')
-n_pred = len(predicted_locations)
-colors = [cmap(v) for v in np.linspace(0, 1, n_pred)] if n_pred > 0 else []
-for idx, (year, lat, lon) in enumerate(predicted_locations):
-    x_pred, y_pred = m(lon, lat)
-    m.scatter(x_pred, y_pred, marker='x', color=colors[idx], label=f'Predicted Occurrence {year}', zorder=5)
-plt.title('Animal Occurrence in India with Predictions')
-# place legend to the right of the map
-plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-plt.tight_layout()
-plt.show()
+
+try:
+    # load the shapefile for India boundary
+    shapefile_path = '/Users/tanujpant/Documents/machine_learning_poc/time_series_analysis_animal_occurence/India_State_Boundary.shp'
+    india = gpd.read_file(shapefile_path)
+    use_shapefile = True
+except Exception as e:
+    print(f"Shapefile not available or incomplete: {e}. Falling back to Basemap.")
+    use_shapefile = False
+
+if use_shapefile:
+    # create GeoDataFrame for historical points
+    gdf_hist = gpd.GeoDataFrame(
+        df2,
+        geometry=gpd.points_from_xy(df2.decimalLongitude, df2.decimalLatitude),
+        crs="EPSG:4326"
+    )
+
+    # plot the India boundary
+    ax = india.plot(color="lightgreen", edgecolor="black", figsize=(10, 8))
+
+    # plot historical data by sex
+    male = gdf_hist[gdf_hist['sex'] == 'Male']
+    female = gdf_hist[gdf_hist['sex'] == 'Female']
+    unspecified = gdf_hist[gdf_hist['sex'] == 'Not specified']
+    count_male = len(male)
+    count_female = len(female)
+    count_unspec = len(unspecified)
+
+    male.plot(ax=ax, color='red', marker='o', label=f'Male ({count_male})', zorder=5)
+    female.plot(ax=ax, color='white', edgecolor='black', marker='o', label=f'Female ({count_female})', zorder=5)
+    unspecified.plot(ax=ax, color='blue', marker='o', label=f'Unknown Sex ({count_unspec})', zorder=5)
+
+    # plot predicted locations
+    if predicted_locations:
+        pred_df = pd.DataFrame(predicted_locations, columns=['year', 'lat', 'lon'])
+        gdf_pred = gpd.GeoDataFrame(
+            pred_df,
+            geometry=gpd.points_from_xy(pred_df.lon, pred_df.lat),
+            crs="EPSG:4326"
+        )
+        cmap = plt.get_cmap('tab10')
+        n_pred = len(gdf_pred)
+        colors = [cmap(v) for v in np.linspace(0, 1, n_pred)] if n_pred > 0 else []
+        for idx, row in gdf_pred.iterrows():
+            gdf_pred.iloc[[idx]].plot(ax=ax, marker='x', color=colors[idx], label=f'Predicted Occurrence {int(row.year)}', zorder=5)
+
+    plt.title('Animal Occurrence in India with Predictions')
+    # place legend to the right of the map
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.show()
+else:
+    # fallback to Basemap
+    from mpl_toolkits.basemap import Basemap
+    m = Basemap(projection='merc', llcrnrlat=6, urcrnrlat=37, llcrnrlon=68, urcrnrlon=97, resolution='i')
+    m.drawcoastlines()
+    m.drawcountries()
+    m.drawmapboundary(fill_color='lightblue')
+    m.fillcontinents(color='lightgreen', lake_color='lightblue')
+    # Plot historical data by sex: red for male, white for female, grey for unspecified
+    male = df2[df2['sex'] == 'Male']
+    female = df2[df2['sex'] == 'Female']
+    unspecified = df2[df2['sex'] == 'Not specified']
+    # compute counts for legend
+    count_male = len(male)
+    count_female = len(female)
+    count_unspec = len(unspecified)
+    # convert coordinates for each group
+    x_male, y_male = m(male['decimalLongitude'].values, male['decimalLatitude'].values)
+    x_female, y_female = m(female['decimalLongitude'].values, female['decimalLatitude'].values)
+    x_unspec, y_unspec = m(unspecified['decimalLongitude'].values, unspecified['decimalLatitude'].values)
+    # scatter male points in red
+    m.scatter(x_male, y_male, marker='o', color='red', label=f'Male ({count_male})', zorder=5)
+    # scatter female points in white with black edge so they are visible
+    m.scatter(x_female, y_female, marker='o', color='white', edgecolor='black', label=f'Female ({count_female})', zorder=5)
+    # scatter unspecified in grey
+    m.scatter(x_unspec, y_unspec, marker='o', color='blue', label=f'Unknown Sex ({count_unspec})', zorder=5)
+    # Plot predicted data for future years using predicted longitude and latitude
+    # assign a distinct color for each predicted year
+    cmap = plt.get_cmap('tab10')
+    n_pred = len(predicted_locations)
+    colors = [cmap(v) for v in np.linspace(0, 1, n_pred)] if n_pred > 0 else []
+    for idx, (year, lat, lon) in enumerate(predicted_locations):
+        x_pred, y_pred = m(lon, lat)
+        m.scatter(x_pred, y_pred, marker='x', color=colors[idx], label=f'Predicted Occurrence {year}', zorder=5)
+    plt.title('Animal Occurrence in India with Predictions')
+    # place legend to the right of the map
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
     # uvicorn.run("main:app", host="8000", reload=True)

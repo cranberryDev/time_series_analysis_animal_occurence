@@ -7,3 +7,4 @@ basemap  # required for mpl_toolkits.basemap
 scikit-learn
 flask
 gunicorn
+geopandas
